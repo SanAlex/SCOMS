@@ -1,0 +1,248 @@
+﻿<?xml version="1.0" encoding="utf-8"?><ManagementPack ContentReadable="true" SchemaVersion="2.0" OriginalSchemaVersion="1.1" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <Manifest>
+    <Identity>
+      <ID>OMSIntegration</ID>
+      <Version>1.1.8.0</Version>
+    </Identity>
+    <Name>OMSIntegration</Name>
+    <References>
+      <Reference Alias="Windows">
+        <ID>Microsoft.Windows.Library</ID>
+        <Version>7.5.8501.0</Version>
+        <PublicKeyToken>31bf3856ad364e35</PublicKeyToken>
+      </Reference>
+      <Reference Alias="System">
+        <ID>System.Library</ID>
+        <Version>7.5.8501.0</Version>
+        <PublicKeyToken>31bf3856ad364e35</PublicKeyToken>
+      </Reference>
+      <Reference Alias="SystemCenter">
+        <ID>Microsoft.SystemCenter.Library</ID>
+        <Version>7.0.8437.0</Version>
+        <PublicKeyToken>31bf3856ad364e35</PublicKeyToken>
+      </Reference>
+    </References>
+  </Manifest>
+  <Monitoring>
+    <Rules>
+      <Rule ID="Sent.My.Data.To.OMS" Enabled="true" Target="SystemCenter!Microsoft.SystemCenter.RootManagementServer" ConfirmDelivery="false" Remotable="true" Priority="Normal" DiscardLevel="100">
+        <Category>Custom</Category>
+        <DataSources>
+          <DataSource ID="Scheduler" TypeID="System!System.Scheduler">
+            <Scheduler>
+              <SimpleReccuringSchedule>
+                <Interval Unit="Minutes">60</Interval>
+              </SimpleReccuringSchedule>
+              <ExcludeDates />
+            </Scheduler>
+          </DataSource>
+        </DataSources>
+        <WriteActions>
+          <WriteAction ID="ExecuteScript" TypeID="Windows!Microsoft.Windows.PowerShellPropertyBagWriteAction">
+            <ScriptName>extractionScript.ps1</ScriptName>
+            <ScriptBody>
+				<![CDATA[
+$MMSMP = Get-SCOMManagementPack -Name "Microsoft.SQLServer*"
+
+$AllMMSClasses = $MMSMP.GetClasses()
+
+$MMSDataComponentArray=@()
+$counterCount = 0
+
+ForEach($MMSClass in $AllMMSClasses)
+{
+$MMSMonitoredObjects = Get-SCOMClassInstance -class $MMSClass
+
+$MMSMonitoredObjectclass = $MMSClass.DisplayName
+
+foreach ($MMSMonitoredObject in $MMSMonitoredObjects) {
+
+        $MMSMonitoredObjectFullname = $MMSMonitoredObject.FullName
+        $MMSMonitoredObjectName = $MMSMonitoredObject.DisplayName
+        $fakeserverNameIndex++
+        If($MMSMonitoredObject.HealthState -eq "Success")
+        {
+           $MMSMonitoredObjectHealth = "Healthy"
+        }
+        If($MMSMonitoredObject.HealthState -eq "Error")
+        {
+           $MMSMonitoredObjectHealth = "Critical"
+        }
+        If($MMSMonitoredObject.HealthState -eq "Warning")
+        {
+           $MMSMonitoredObjectHealth = "Warning"
+        }
+        If($MMSMonitoredObject.HealthState -eq "Uninitialized")
+        {
+           $MMSMonitoredObjectHealth = "Not Monitored"
+        }
+
+        $MMSMonitoredObjectOpenAlerts = $MMSMonitoredObject.GetMonitoringAlerts() | where{$_.ResolutionState -ne 255} 
+        $MMSMonitoredObjectOpenAlertsCount = $MMSMonitoredObjectOpenAlerts.count    
+
+#Last 1 hours UTC
+$aggregationInterval = 1
+$dt = New-TimeSpan -hour $aggregationInterval
+$nowlocal = Get-Date
+
+#Convert local time to UTC time
+$now = $nowlocal.ToUniversalTime()
+$from = $now.Subtract($dt)
+
+$perfRules = $MMSMonitoredObject.GetMonitoringPerformanceData()
+if($perfRules.Count -gt 0)
+{
+foreach ($perfRule in $perfRules)     {
+
+        $MMSMonitoredObjectCounterName = $perfRule.CounterName
+        $MMSMonitoredObjectObjectName = $perfRule.ObjectName
+        $MMSMonitoredObjectInstanceName = $perfRule.InstanceName
+
+        $MMSData = $perfRule.GetValues($from, $now) | % { $_.SampleValue } | Measure-Object -Average -Max
+        
+        $MMSMonitoredObjectCounterValueAvg = $MMSData.Average
+        $MMSMonitoredObjectPerfCollectCount = $MMSData.Count
+        if([string]::IsNullOrEmpty($MMSMonitoredObjectCounterValueAvg) -eq $True)
+        {
+            $MMSMonitoredObjectCounterValueAvg = 0
+            $MMSMonitoredObjectPerfCollectCount = 0
+        }
+        
+        $MMSMonitoredObjectCounterValueMax = $MMSData.Maximum
+        if([string]::IsNullOrEmpty($MMSMonitoredObjectCounterValueMax) -eq $True)
+        {$MMSMonitoredObjectCounterValueMax = 0}
+
+        $MMSMonitoredObjectCollectionRangeHr = $aggregationInterval                
+        
+        $MMSDataComponentArray += @{"MonitoredObject"=$MMSMonitoredObjectName.ToString();"HealthState"=$MMSMonitoredObjectHealth.ToString();"PerformanceCounterName"=$MMSMonitoredObjectCounterName.ToString();"PerformanceObjectObjectName"=$MMSMonitoredObjectObjectName.ToString();"PerformanceInstanceName"=$MMSMonitoredObjectInstanceName.ToString();"PerformanceCounterValueAvg"=$MMSMonitoredObjectCounterValueAvg;"PerformanceCounterValueMax"=$MMSMonitoredObjectCounterValueMax;"PerformanceCollectionAggHr"=$MMSMonitoredObjectCollectionRangeHr;"OpenAlerts"=$MMSMonitoredObjectOpenAlertsCount;"ObjectType"=$MMSMonitoredObjectclass;"ObjectPath"=$MMSMonitoredObjectFullname;"SampleCount"=$MMSMonitoredObjectPerfCollectCount}
+
+        $counterCount++
+        }
+}
+else
+{
+        $MMSMonitoredObjectCounterName = "_"
+        $MMSMonitoredObjectObjectName = "_"
+        $MMSMonitoredObjectInstanceName = "_"
+        $MMSMonitoredObjectCounterValueAvg = 0
+        $MMSMonitoredObjectPerfCollectCount = 0
+        $MMSMonitoredObjectCounterValueMax = 0
+        $MMSMonitoredObjectCollectionRangeHr = 0
+
+        $MMSDataComponentArray += @{"MonitoredObject"=$MMSMonitoredObjectName.ToString();"HealthState"=$MMSMonitoredObjectHealth.ToString();"PerformanceCounterName"=$MMSMonitoredObjectCounterName.ToString();"PerformanceObjectObjectName"=$MMSMonitoredObjectObjectName.ToString();"PerformanceInstanceName"=$MMSMonitoredObjectInstanceName.ToString();"PerformanceCounterValueAvg"=$MMSMonitoredObjectCounterValueAvg;"PerformanceCounterValueMax"=$MMSMonitoredObjectCounterValueMax;"PerformanceCollectionAggHr"=$MMSMonitoredObjectCollectionRangeHr;"OpenAlerts"=$MMSMonitoredObjectOpenAlertsCount;"ObjectType"=$MMSMonitoredObjectclass.ToString();"ObjectPath"=$MMSMonitoredObjectFullname.ToString();"SampleCount"=$MMSMonitoredObjectPerfCollectCount}
+
+        $counterCount++
+
+}
+
+
+}
+}
+
+$jsonPayload = $MMSDataComponentArray | ConvertTo-Json
+
+ $Message = "Counters Count:" + $counterCount
+ Write-eventlog -logname 'operations manager' -Source 'Health Service Script' -EventId 798 -EntryType error -Message $Message
+  
+# Replace with your Workspace ID
+$CustomerId = "yourid"  
+
+# Replace with your Primary Key
+$SharedKey = "yourkey"
+
+ 
+#Specify the name of the record type that we'll be creating.
+$LogType = "MMSSQLMP"
+
+#Specify a time in the format YYYY-MM-DDThh:mm:ssZ to specify a created time for the records.
+$TimeStampField =""
+#= Get-Date -Format o
+
+
+# Function to create the authorization signature.
+Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
+{
+    $xHeaders = "x-ms-date:" + $date
+    $stringToHash = $method + "`n" + $contentLength + "`n" + $contentType + "`n" + $xHeaders + "`n" + $resource
+
+    $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
+    $keyBytes = [Convert]::FromBase64String($sharedKey)
+
+    $sha256 = New-Object System.Security.Cryptography.HMACSHA256
+    $sha256.Key = $keyBytes
+    $calculatedHash = $sha256.ComputeHash($bytesToHash)
+    $encodedHash = [Convert]::ToBase64String($calculatedHash)
+    $authorization = 'SharedKey {0}:{1}' -f $customerId,$encodedHash
+    return $authorization	
+}
+
+
+# Function to create and post the request
+Function Post-OMSData($customerId, $sharedKey, $body, $logType) 
+{
+    $method = "POST"
+    $contentType = "application/json"
+    $resource = "/api/logs"
+    $rfc1123date = [DateTime]::UtcNow.ToString("r")
+    $contentLength = $body.Length
+     $signature = Build-Signature `
+        -customerId $customerId `
+        -sharedKey $sharedKey `
+        -date $rfc1123date `
+        -contentLength $contentLength `
+        -fileName $fileName `
+        -method $method `
+        -contentType $contentType `
+        -resource $resource
+    $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
+
+    $headers = @{
+        "Authorization" = $signature;
+        "Log-Type" = $logType;
+        "x-ms-date" = $rfc1123date;
+        "time-generated-field" = $TimeStampField;
+    }
+    $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
+	Write-eventlog -logname 'operations manager' -Source 'Health Service Script' -EventId 798 -EntryType error -Message $response.StatusCode
+    return $response.StatusCode
+} 
+ 
+# Submit the data to the API endpoint
+Post-OMSData -customerId $customerId -sharedKey $sharedKey -body ([System.Text.Encoding]::UTF8.GetBytes($jsonPayload)) -logType $logType
+	]]>
+
+			</ScriptBody>
+            <TimeoutSeconds>600</TimeoutSeconds>
+          </WriteAction>
+        </WriteActions>
+      </Rule>
+    </Rules>
+  </Monitoring>
+  <Presentation>
+    <Folders>
+      <Folder ID="Folder_7529c457ecf04546b2a17c19de75078c" Accessibility="Public" ParentFolder="SystemCenter!Microsoft.SystemCenter.Monitoring.ViewFolder.Root" />
+    </Folders>
+  </Presentation>
+  <LanguagePacks>
+    <LanguagePack ID="ENU" IsDefault="false">
+      <DisplayStrings>
+        <DisplayString ElementID="OMSIntegration">
+          <Name>OMSIntegration</Name>
+        </DisplayString>
+        <DisplayString ElementID="Folder_7529c457ecf04546b2a17c19de75078c">
+          <Name>OMSIntegration</Name>
+        </DisplayString>
+        <DisplayString ElementID="Sent.My.Data.To.OMS">
+          <Name>SentMyDataToOMS</Name>
+          <Description />
+        </DisplayString>
+        <DisplayString ElementID="Sent.My.Data.To.OMS" SubElementID="ExecuteScript">
+          <Name>PowerShell Script Property Bag Write Action</Name>
+        </DisplayString>
+        <DisplayString ElementID="Sent.My.Data.To.OMS" SubElementID="Scheduler">
+          <Name>Scheduler</Name>
+        </DisplayString>
+      </DisplayStrings>
+    </LanguagePack>
+  </LanguagePacks>
+</ManagementPack>
