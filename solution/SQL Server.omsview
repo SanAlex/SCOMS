@@ -1,0 +1,581 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "resourcegroup": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "subscriptionId": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "workspace": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "workspaceapiversion": {
+            "type": "string",
+            "defaultValue": ""
+        }
+    },
+    "resources": [
+        {
+            "apiVersion": "[parameters('workspaceapiversion')]",
+            "name": "[parameters('workspace')]",
+            "type": "Microsoft.OperationalInsights/workspaces",
+            "location": "[parameters('location')]",
+            "id": "[Concat('/subscriptions/', parameters('subscriptionId'), '/resourceGroups/', parameters('resourcegroup'), '/providers/Microsoft.OperationalInsights/workspaces/', parameters('workspace'))]",
+            "resources": [
+                {
+                    "apiVersion": "2015-11-01-preview",
+                    "name": "SQL Server",
+                    "type": "views",
+                    "location": "[parameters('location')]",
+                    "id": "[Concat('/subscriptions/', parameters('subscriptionId'), '/resourceGroups/', parameters('resourcegroup'), '/providers/Microsoft.OperationalInsights/workspaces/', parameters('workspace'),'/views/SQL Server')]",
+                    "dependson": [
+                        "[Concat('/subscriptions/', parameters('subscriptionId'), '/resourceGroups/', parameters('resourcegroup'), '/providers/Microsoft.OperationalInsights/workspaces/', parameters('workspace'))]"
+                    ],
+                    "properties": {
+                        "Id": "SQL Server",
+                        "Name": "SQL Server",
+                        "Author": "AAndruschenko@viacode.com",
+                        "Source": "Local",
+                        "Version": 2,
+                        "Dashboard": [
+                            {
+                                "Id": "SingleQueryDonutBuilderBladeV1",
+                                "Type": "Blade",
+                                "Version": 0,
+                                "Configuration": {
+                                    "General": {
+                                        "title": "SQL Server Instances",
+                                        "newGroup": false,
+                                        "icon": "",
+                                        "useIcon": false
+                                    },
+                                    "Header": {
+                                        "Title": "SQL Server Instance Health State",
+                                        "Subtitle": ""
+                                    },
+                                    "Donut": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+DBEngine:.+$\" | summarize AggregatedValue = dcount(ObjectPath_s) by HealthState_s | sort by AggregatedValue desc// Oql: ObjectPath_s=Regex(\"@SQLServer@DBEngine:@\")|measure countdistinct(ObjectPath_s) by HealthState_s",
+                                        "CenterLegend": {
+                                            "Text": "Total",
+                                            "Operation": "Sum",
+                                            "ArcsToSelect": []
+                                        },
+                                        "Options": {
+                                            "colors": [
+                                                "#007233",
+                                                "#e81123",
+                                                "#00bcf2"
+                                            ],
+                                            "valueColorMapping": []
+                                        }
+                                    },
+                                    "List": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+DBEngine:.+$\" and HealthState_s == \"Critical\" | summarize AggregatedValue = dcount(ObjectPath_s) by ObjectPath_s, MonitoredObject_s// Oql: ObjectPath_s=Regex(\"@SQLServer@DBEngine:@\") HealthState_s=Critical|measure countdistinct(ObjectPath_s) by ObjectPath_s,  MonitoredObject_s",
+                                        "HideGraph": true,
+                                        "enableSparklines": false,
+                                        "operation": "Summary",
+                                        "ColumnsTitle": {
+                                            "Name": "SQL Instance",
+                                            "Value": "Count"
+                                        },
+                                        "Color": "#0072c6",
+                                        "thresholds": {
+                                            "isEnabled": true,
+                                            "values": [
+                                                {
+                                                    "name": "Normal",
+                                                    "threshold": "Default",
+                                                    "color": "#009e49",
+                                                    "isDefault": true
+                                                },
+                                                {
+                                                    "name": "Warning",
+                                                    "threshold": "60",
+                                                    "color": "#fcd116",
+                                                    "isDefault": false
+                                                },
+                                                {
+                                                    "name": "Error",
+                                                    "threshold": "0",
+                                                    "color": "#ba141a",
+                                                    "isDefault": false
+                                                }
+                                            ]
+                                        },
+                                        "NameDSVSeparator": "",
+                                        "NavigationQuery": "search {selected item}// Oql: {selected item}"
+                                    }
+                                }
+                            },
+                            {
+                                "Id": "LineChartCalloutBuilderBlade",
+                                "Type": "Blade",
+                                "Version": 0,
+                                "Configuration": {
+                                    "General": {
+                                        "title": "SQL Server CPU Utilization %",
+                                        "newGroup": false,
+                                        "icon": "",
+                                        "useIcon": false
+                                    },
+                                    "Header": {
+                                        "Title": "SQL CPU Utilization %",
+                                        "Subtitle": ""
+                                    },
+                                    "LineChart": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+DBEngine:.+$\" and PerformanceCounterName_s matches regex \"CPU\" | summarize maxCPU = max(PerformanceCounterValueAvg_d) by bin(TimeGenerated, 1h), ObjectPath_s, MonitoredObject_s | sort by TimeGenerated desc | render timechart// Oql: ObjectPath_s=Regex(\"@SQLServer@DBEngine:@\") PerformanceCounterName_s=Regex(\"@CPU@\")|measure max(PerformanceCounterValueAvg_d) as maxCPU by ObjectPath_s,  MonitoredObject_s|display LineChart",
+                                        "Callout": {
+                                            "Title": "CPU Avg Max",
+                                            "Series": "",
+                                            "Operation": "Max"
+                                        },
+                                        "yAxis": {
+                                            "isLogarithmic": false,
+                                            "units": {
+                                                "baseUnitType": "",
+                                                "baseUnit": "",
+                                                "displayUnit": ""
+                                            },
+                                            "customLabel": ""
+                                        }
+                                    },
+                                    "List": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+DBEngine:.+$\" and PerformanceCounterName_s matches regex \"CPU\" | summarize maxCPU = max(PerformanceCounterValueAvg_d) by ObjectPath_s, MonitoredObject_s// Oql: ObjectPath_s=Regex(\"@SQLServer@DBEngine:@\") PerformanceCounterName_s=Regex(\"@CPU@\")|measure max(PerformanceCounterValueAvg_d) as maxCPU by ObjectPath_s,  MonitoredObject_s",
+                                        "HideGraph": false,
+                                        "enableSparklines": false,
+                                        "operation": "Last Sample",
+                                        "ColumnsTitle": {
+                                            "Name": "SQL Instance",
+                                            "Value": "CPU"
+                                        },
+                                        "Color": "#0072c6",
+                                        "thresholds": {
+                                            "isEnabled": false,
+                                            "values": [
+                                                {
+                                                    "name": "Normal",
+                                                    "threshold": "Default",
+                                                    "color": "#009e49",
+                                                    "isDefault": true
+                                                },
+                                                {
+                                                    "name": "Warning",
+                                                    "threshold": "60",
+                                                    "color": "#fcd116",
+                                                    "isDefault": false
+                                                },
+                                                {
+                                                    "name": "Error",
+                                                    "threshold": "90",
+                                                    "color": "#ba141a",
+                                                    "isDefault": false
+                                                }
+                                            ]
+                                        },
+                                        "NameDSVSeparator": "",
+                                        "NavigationQuery": "search {selected item}// Oql: {selected item}"
+                                    }
+                                }
+                            },
+                            {
+                                "Id": "LineChartCalloutBuilderBlade",
+                                "Type": "Blade",
+                                "Version": 0,
+                                "Configuration": {
+                                    "General": {
+                                        "title": "SQL Server Stolen Memory ",
+                                        "newGroup": false,
+                                        "icon": "",
+                                        "useIcon": false
+                                    },
+                                    "Header": {
+                                        "Title": "Stolen Server Memory MB",
+                                        "Subtitle": ""
+                                    },
+                                    "LineChart": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+DBEngine:.+$\" and PerformanceCounterName_s matches regex \"Stolen\" and PerformanceCounterValueAvg_d > 300 | summarize Stolen = max(PerformanceCounterValueAvg_d) by bin(TimeGenerated, 1h), ObjectPath_s | sort by TimeGenerated desc | render timechart// Oql: ObjectPath_s=Regex(\"@SQLServer@DBEngine:@\") PerformanceCounterName_s=Regex(\"@Stolen@\") PerformanceCounterValueAvg_d>300|measure max(PerformanceCounterValueAvg_d) as Stolen by ObjectPath_s|display LineChart",
+                                        "Callout": {
+                                            "Title": "Max Stolen Memory",
+                                            "Series": "",
+                                            "Operation": "Max"
+                                        },
+                                        "yAxis": {
+                                            "isLogarithmic": false,
+                                            "units": {
+                                                "baseUnitType": "",
+                                                "baseUnit": "",
+                                                "displayUnit": ""
+                                            },
+                                            "customLabel": ""
+                                        }
+                                    },
+                                    "List": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+DBEngine:.+$\" and PerformanceCounterName_s matches regex \"Stolen\" | summarize Stolen = max(PerformanceCounterValueAvg_d) by ObjectPath_s, MonitoredObject_s// Oql: ObjectPath_s=Regex(\"@SQLServer@DBEngine:@\") PerformanceCounterName_s=Regex(\"@Stolen@\")|measure max(PerformanceCounterValueAvg_d) as Stolen by ObjectPath_s, MonitoredObject_s",
+                                        "HideGraph": false,
+                                        "enableSparklines": false,
+                                        "operation": "Summary",
+                                        "ColumnsTitle": {
+                                            "Name": "SQL Instance",
+                                            "Value": "Stolen Memory MB"
+                                        },
+                                        "Color": "#0072c6",
+                                        "thresholds": {
+                                            "isEnabled": false,
+                                            "values": [
+                                                {
+                                                    "name": "Normal",
+                                                    "threshold": "Default",
+                                                    "color": "#009e49",
+                                                    "isDefault": true
+                                                },
+                                                {
+                                                    "name": "Warning",
+                                                    "threshold": "60",
+                                                    "color": "#fcd116",
+                                                    "isDefault": false
+                                                },
+                                                {
+                                                    "name": "Error",
+                                                    "threshold": "90",
+                                                    "color": "#ba141a",
+                                                    "isDefault": false
+                                                }
+                                            ]
+                                        },
+                                        "NameDSVSeparator": "",
+                                        "NavigationQuery": "search {selected item}// Oql: {selected item}"
+                                    }
+                                }
+                            },
+                            {
+                                "Id": "LineChartCalloutBuilderBlade",
+                                "Type": "Blade",
+                                "Version": 0,
+                                "Configuration": {
+                                    "General": {
+                                        "title": "Average Wait time (ms)",
+                                        "newGroup": false,
+                                        "icon": "",
+                                        "useIcon": false
+                                    },
+                                    "Header": {
+                                        "Title": "Average Wait time (ms)",
+                                        "Subtitle": ""
+                                    },
+                                    "LineChart": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+DBEngine:.+$\" and PerformanceCounterName_s matches regex \"^.+Wait\\\\ Time.+$\" | summarize Stolen = max(PerformanceCounterValueAvg_d) by bin(TimeGenerated, 1h), ObjectPath_s | sort by TimeGenerated desc | render timechart// Oql: ObjectPath_s=Regex(\"@SQLServer@DBEngine:@\") PerformanceCounterName_s=Regex(\"@Wait Time@\") |measure max(PerformanceCounterValueAvg_d) as Stolen by ObjectPath_s|display LineChart",
+                                        "Callout": {
+                                            "Title": "Max Average Wait time (ms)",
+                                            "Series": "",
+                                            "Operation": "Max"
+                                        },
+                                        "yAxis": {
+                                            "isLogarithmic": false,
+                                            "units": {
+                                                "baseUnitType": "",
+                                                "baseUnit": "",
+                                                "displayUnit": ""
+                                            },
+                                            "customLabel": ""
+                                        }
+                                    },
+                                    "List": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+DBEngine:.+$\" and PerformanceCounterName_s matches regex \"^.+Wait\\\\ Time.+$\" | summarize Stolen = max(PerformanceCounterValueAvg_d) by ObjectPath_s, MonitoredObject_s// Oql: ObjectPath_s=Regex(\"@SQLServer@DBEngine:@\") PerformanceCounterName_s=Regex(\"@Wait Time@\")|measure max(PerformanceCounterValueAvg_d) as Stolen by ObjectPath_s, MonitoredObject_s",
+                                        "HideGraph": false,
+                                        "enableSparklines": false,
+                                        "operation": "Summary",
+                                        "ColumnsTitle": {
+                                            "Name": "SQL DB",
+                                            "Value": "Count"
+                                        },
+                                        "Color": "#0072c6",
+                                        "thresholds": {
+                                            "isEnabled": true,
+                                            "values": [
+                                                {
+                                                    "name": "Normal",
+                                                    "threshold": "Default",
+                                                    "color": "#009e49",
+                                                    "isDefault": true
+                                                },
+                                                {
+                                                    "name": "Warning",
+                                                    "threshold": "20",
+                                                    "color": "#fcd116",
+                                                    "isDefault": false
+                                                },
+                                                {
+                                                    "name": "Error",
+                                                    "threshold": "60",
+                                                    "color": "#ba141a",
+                                                    "isDefault": false
+                                                }
+                                            ]
+                                        },
+                                        "NameDSVSeparator": "",
+                                        "NavigationQuery": "search {selected item}// Oql: {selected item}"
+                                    }
+                                }
+                            },
+                            {
+                                "Id": "SingleQueryDonutBuilderBladeV1",
+                                "Type": "Blade",
+                                "Version": 0,
+                                "Configuration": {
+                                    "General": {
+                                        "title": "SQL DB Health",
+                                        "newGroup": true,
+                                        "icon": "",
+                                        "useIcon": false
+                                    },
+                                    "Header": {
+                                        "Title": "SQL Server DB Health State",
+                                        "Subtitle": ""
+                                    },
+                                    "Donut": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+Database:.+$\" | summarize AggregatedValue = dcount(ObjectPath_s) by HealthState_s | sort by AggregatedValue desc\r\n// Oql: ObjectPath_s=Regex(\"@SQLServer@Database:@\") |measure countdistinct(ObjectPath_s) by HealthState_s",
+                                        "CenterLegend": {
+                                            "Text": "Total",
+                                            "Operation": "Sum",
+                                            "ArcsToSelect": []
+                                        },
+                                        "Options": {
+                                            "colors": [
+                                                "#007233",
+                                                "#e81123",
+                                                "#00bcf2"
+                                            ],
+                                            "valueColorMapping": []
+                                        }
+                                    },
+                                    "List": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+Database:.+$\" and HealthState_s == \"Critical\" | summarize AggregatedValue = dcount(ObjectPath_s) by ObjectPath_s, MonitoredObject_s\r\n// Oql: ObjectPath_s=Regex(\"@SQLServer@Database:@\") HealthState_s=Critical|measure countdistinct(ObjectPath_s) by ObjectPath_s, MonitoredObject_s",
+                                        "HideGraph": true,
+                                        "enableSparklines": false,
+                                        "operation": "Last Sample",
+                                        "ColumnsTitle": {
+                                            "Name": "Unhealthy SQL Server DB",
+                                            "Value": "Count"
+                                        },
+                                        "Color": "#0072c6",
+                                        "thresholds": {
+                                            "isEnabled": true,
+                                            "values": [
+                                                {
+                                                    "name": "Normal",
+                                                    "threshold": "Default",
+                                                    "color": "#009e49",
+                                                    "isDefault": true
+                                                },
+                                                {
+                                                    "name": "Warning",
+                                                    "threshold": "0",
+                                                    "color": "#fcd116",
+                                                    "isDefault": false
+                                                },
+                                                {
+                                                    "name": "Error",
+                                                    "threshold": "0",
+                                                    "color": "#ba141a",
+                                                    "isDefault": false
+                                                }
+                                            ]
+                                        },
+                                        "NameDSVSeparator": "",
+                                        "NavigationQuery": "search {selected item}\r\n// Oql: {selected item}"
+                                    }
+                                }
+                            },
+                            {
+                                "Id": "LineChartCalloutBuilderBlade",
+                                "Type": "Blade",
+                                "Version": 0,
+                                "Configuration": {
+                                    "General": {
+                                        "title": "SQL DBs Free Space %",
+                                        "newGroup": false,
+                                        "icon": "",
+                                        "useIcon": false
+                                    },
+                                    "Header": {
+                                        "Title": "SQL DB Free Space %",
+                                        "Subtitle": ""
+                                    },
+                                    "LineChart": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+Database:.+$\" and PerformanceCounterName_s != \"DB Transaction Log Available Space Total (%)\" and PerformanceCounterName_s matches regex \"^[^Log].+Space.+%.+$\" | summarize AvailableSpace = min(PerformanceCounterValueAvg_d) by bin(TimeGenerated, 1h), ObjectPath_s | sort by AvailableSpace asc | render timechart\r\n// Oql: ObjectPath_s=Regex(\"@SQLServer@Database:@\") PerformanceCounterName_s!=\"DB Transaction Log Available Space Total (%)\" PerformanceCounterName_s=Regex(\"[^Log]@Space@%@\")|measure min(PerformanceCounterValueAvg_d) as AvailableSpace by ObjectPath_s|sort AvailableSpace|display LineChart",
+                                        "Callout": {
+                                            "Title": "SQL DB Min Free Space %",
+                                            "Series": "",
+                                            "Operation": "Min"
+                                        },
+                                        "yAxis": {
+                                            "isLogarithmic": false,
+                                            "units": {
+                                                "baseUnitType": "",
+                                                "baseUnit": "",
+                                                "displayUnit": ""
+                                            },
+                                            "customLabel": ""
+                                        }
+                                    },
+                                    "List": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+Database:.+$\" and PerformanceCounterName_s != \"DB Transaction Log Available Space Total (%)\" and PerformanceCounterName_s matches regex \"^[^Log].+Space.+%.+$\" | summarize AvailableSpace = min(PerformanceCounterValueAvg_d) by ObjectPath_s, MonitoredObject_s | sort by AvailableSpace asc\r\n// Oql: ObjectPath_s=Regex(\"@SQLServer@Database:@\") PerformanceCounterName_s!=\"DB Transaction Log Available Space Total (%)\" PerformanceCounterName_s=Regex(\"[^Log]@Space@%@\")|measure min(PerformanceCounterValueAvg_d) as AvailableSpace by ObjectPath_s, MonitoredObject_s|sort AvailableSpace",
+                                        "HideGraph": false,
+                                        "enableSparklines": false,
+                                        "operation": "Summary",
+                                        "ColumnsTitle": {
+                                            "Name": "SQL DB",
+                                            "Value": "SQL DB Free Space %"
+                                        },
+                                        "Color": "#0072c6",
+                                        "thresholds": {
+                                            "isEnabled": true,
+                                            "values": [
+                                                {
+                                                    "name": "Error",
+                                                    "threshold": "Default",
+                                                    "color": "#e81123",
+                                                    "isDefault": true
+                                                },
+                                                {
+                                                    "name": "Healthy",
+                                                    "threshold": "90",
+                                                    "color": "#007233",
+                                                    "isDefault": false
+                                                },
+                                                {
+                                                    "name": "Warning",
+                                                    "threshold": "60",
+                                                    "color": "#fcd116",
+                                                    "isDefault": false
+                                                }
+                                            ]
+                                        },
+                                        "NameDSVSeparator": "",
+                                        "NavigationQuery": "search {selected item}\r\n// Oql: {selected item}"
+                                    }
+                                }
+                            },
+                            {
+                                "Id": "LineChartCalloutBuilderBlade",
+                                "Type": "Blade",
+                                "Version": 0,
+                                "Configuration": {
+                                    "General": {
+                                        "title": "SQL DBs Disk Latency ms",
+                                        "newGroup": false,
+                                        "icon": "",
+                                        "useIcon": false
+                                    },
+                                    "Header": {
+                                        "Title": "Disk Latency ms",
+                                        "Subtitle": ""
+                                    },
+                                    "LineChart": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+Database:.+$\" and PerformanceCounterName_s matches regex \"^DB.*?Disk.*?ms.*?$\" and PerformanceCounterValueAvg_d > 0 | summarize Latency = max(PerformanceCounterValueAvg_d) by bin(TimeGenerated, 1h), ObjectPath_s | sort by Latency asc | render timechart\r\n// Oql: ObjectPath_s=Regex(\"@SQLServer@Database:@\") PerformanceCounterName_s=DB*Disk*ms* PerformanceCounterValueAvg_d>0|measure max(PerformanceCounterValueAvg_d) as Latency by ObjectPath_s |sort Latency|display LineChart",
+                                        "Callout": {
+                                            "Title": "Max Latency ms",
+                                            "Series": "",
+                                            "Operation": "Max"
+                                        },
+                                        "yAxis": {
+                                            "isLogarithmic": false,
+                                            "units": {
+                                                "baseUnitType": "",
+                                                "baseUnit": "",
+                                                "displayUnit": ""
+                                            },
+                                            "customLabel": ""
+                                        }
+                                    },
+                                    "List": {
+                                        "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+Database:.+$\" and PerformanceCounterName_s matches regex \"^DB.*?Disk.*?ms.*?$\" | summarize Latency = max(PerformanceCounterValueAvg_d) by ObjectPath_s, MonitoredObject_s | sort by Latency desc\r\n// Oql: ObjectPath_s=Regex(\"@SQLServer@Database:@\") PerformanceCounterName_s=DB*Disk*ms*|measure max(PerformanceCounterValueAvg_d) as Latency by ObjectPath_s, MonitoredObject_s|sort Latency desc",
+                                        "HideGraph": false,
+                                        "enableSparklines": false,
+                                        "operation": "Summary",
+                                        "ColumnsTitle": {
+                                            "Name": "SQL DB",
+                                            "Value": "Disk Latency"
+                                        },
+                                        "Color": "#0072c6",
+                                        "thresholds": {
+                                            "isEnabled": true,
+                                            "values": [
+                                                {
+                                                    "name": "Normal",
+                                                    "threshold": "Default",
+                                                    "color": "#009e49",
+                                                    "isDefault": true
+                                                },
+                                                {
+                                                    "name": "Warning",
+                                                    "threshold": "60",
+                                                    "color": "#fcd116",
+                                                    "isDefault": false
+                                                },
+                                                {
+                                                    "name": "Error",
+                                                    "threshold": "90",
+                                                    "color": "#ba141a",
+                                                    "isDefault": false
+                                                }
+                                            ]
+                                        },
+                                        "NameDSVSeparator": "",
+                                        "NavigationQuery": "search {selected item}\r\n// Oql: {selected item}"
+                                    }
+                                }
+                            }
+                        ],
+                        "Filters": [],
+                        "OverviewTile": {
+                            "Id": "SingleQueryDonutBuilderTileV1",
+                            "Type": "OverviewTile",
+                            "Version": 2,
+                            "Configuration": {
+                                "Donut": {
+                                    "Query": "search ObjectPath_s matches regex \"^.+SQLServer.+DBEngine:.+$\" | summarize AggregatedValue = dcount(ObjectPath_s) by HealthState_s | sort by AggregatedValue desc\r\n// Oql: ObjectPath_s=Regex(\"@SQLServer@DBEngine:@\")|measure countdistinct(ObjectPath_s) by HealthState_s",
+                                    "CenterLegend": {
+                                        "Text": "Total",
+                                        "Operation": "Sum",
+                                        "ArcsToSelect": []
+                                    },
+                                    "Options": {
+                                        "colors": [
+                                            "#007233",
+                                            "#e81123",
+                                            "#00bcf2"
+                                        ],
+                                        "valueColorMapping": [],
+                                        "legend": true,
+                                        "skipLegendPositioning": true,
+                                        "center": true,
+                                        "unitType": "Count",
+                                        "fromUnit": "Ones"
+                                    },
+                                    "HideOtherLegend": true
+                                },
+                                "Advanced": {
+                                    "DataFlowVerification": {
+                                        "Enabled": false,
+                                        "Query": "search *\r\n// Oql: *",
+                                        "Message": ""
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}
